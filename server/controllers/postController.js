@@ -1,4 +1,94 @@
 const Post = require('../models/Post');
+const Tag = require('../models/Tag');
+
+const isValidTagList = (tags) =>
+  Array.isArray(tags) &&
+  tags.every((tag) => typeof tag === 'string' && tag.trim().length > 0);
+
+const getUniqueTagNames = (tags) => {
+  const uniqueTagNames = new Map();
+
+  tags.forEach((tag) => {
+    const displayName = tag.trim();
+    const normalizedName = displayName.toLowerCase();
+
+    if (!uniqueTagNames.has(normalizedName)) {
+      uniqueTagNames.set(normalizedName, displayName);
+    }
+  });
+
+  return [...uniqueTagNames.entries()].map(([name, displayName]) => ({
+    name,
+    displayName
+  }));
+};
+
+const findOrCreateTag = async (name) => {
+  let tag = await Tag.findOne({ name });
+
+  if (tag) {
+    return tag;
+  }
+
+  const baseSlug = name
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'tag';
+  let slug = baseSlug;
+  let suffix = 0;
+
+  while (true) {
+    const existingSlug = await Tag.findOne({ slug });
+
+    if (existingSlug) {
+      if (existingSlug.name === name) {
+        return existingSlug;
+      }
+
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+      continue;
+    }
+
+    tag = new Tag({ name, slug });
+
+    try {
+      return await tag.save();
+    } catch (error) {
+      if (error.code !== 11000) {
+        throw error;
+      }
+
+      tag = await Tag.findOne({ name });
+
+      if (tag) {
+        return tag;
+      }
+
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+  }
+};
+
+const resolvePostTags = async (tags) => {
+  const uniqueTagNames = getUniqueTagNames(tags);
+  const tagDocuments = [];
+
+  for (const { name } of uniqueTagNames) {
+    tagDocuments.push(await findOrCreateTag(name));
+  }
+
+  return {
+    names: uniqueTagNames.map(({ displayName }) => displayName),
+    references: tagDocuments.map((tag) => tag._id)
+  };
+};
+
+const serializePost = (post) => {
+  const postObject = post.toObject();
+  delete postObject.tagRefs;
+  return postObject;
+};
 
 const createPost = async (req, res) => {
   try {
@@ -16,13 +106,14 @@ const createPost = async (req, res) => {
       });
     }
 
-    if (!Array.isArray(tags)) {
+    if (!isValidTagList(tags)) {
       return res.status(400).json({
         success: false,
-        message: 'Tags must be an array'
+        message: 'Tags must be an array of non-empty strings'
       });
     }
 
+    const resolvedTags = await resolvePostTags(tags);
     const baseSlug = title
       .trim()
       .toLowerCase()
@@ -44,7 +135,8 @@ const createPost = async (req, res) => {
         slug,
         content,
         coverImage,
-        tags,
+        tags: resolvedTags.names,
+        tagRefs: resolvedTags.references,
         author: req.user._id
       });
 
@@ -63,7 +155,7 @@ const createPost = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      post
+      post: serializePost(post)
     });
   } catch (error) {
     if (error.name === 'ValidationError') {
@@ -86,7 +178,7 @@ const getPosts = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      posts
+      posts: posts.map(serializePost)
     });
   } catch (error) {
     return res.status(500).json({
@@ -112,7 +204,7 @@ const getPostBySlug = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      post
+      post: serializePost(post)
     });
   } catch (error) {
     return res.status(500).json({
@@ -128,7 +220,7 @@ const getMyPosts = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      posts
+      posts: posts.map(serializePost)
     });
   } catch (error) {
     return res.status(500).json({
@@ -171,10 +263,10 @@ const updatePost = async (req, res) => {
       });
     }
 
-    if (hasUpdate('tags') && !Array.isArray(updates.tags)) {
+    if (hasUpdate('tags') && !isValidTagList(updates.tags)) {
       return res.status(400).json({
         success: false,
-        message: 'Tags must be an array'
+        message: 'Tags must be an array of non-empty strings'
       });
     }
 
@@ -197,19 +289,21 @@ const updatePost = async (req, res) => {
       post.coverImage = updates.coverImage;
     }
 
-    if (hasUpdate('tags')) {
-      post.tags = updates.tags;
-    }
-
     if (hasUpdate('isPublished')) {
       post.isPublished = updates.isPublished;
     }
+
+    const resolvedTags = await resolvePostTags(
+      hasUpdate('tags') ? updates.tags : post.tags
+    );
+    post.tags = resolvedTags.names;
+    post.tagRefs = resolvedTags.references;
 
     await post.save();
 
     return res.status(200).json({
       success: true,
-      post
+      post: serializePost(post)
     });
   } catch (error) {
     return res.status(500).json({

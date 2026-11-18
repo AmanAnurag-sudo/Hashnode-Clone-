@@ -31,6 +31,10 @@ const postSchema = new mongoose.Schema(
       type: String,
       trim: true
     }],
+    tagRefs: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Tag'
+    }],
     isPublished: {
       type: Boolean,
       default: false
