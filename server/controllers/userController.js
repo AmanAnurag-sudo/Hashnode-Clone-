@@ -1,5 +1,6 @@
 
 const User = require('../models/Users');
+const Post = require('../models/Post');
 const bcrypt = require('bcryptjs');
 
 // Register a new user
@@ -7,7 +8,6 @@ const registerUser = async (req, res) => {
   try {
     const { name, username, email, password } = req.body;
 
-    // Check required fields
     if (!name || !username || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -15,7 +15,6 @@ const registerUser = async (req, res) => {
       });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({
       $or: [{ email }, { username }]
     });
@@ -27,10 +26,8 @@ const registerUser = async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await User.create({
       name,
       username,
@@ -56,14 +53,11 @@ const registerUser = async (req, res) => {
   }
 };
 
-
-
-
+// Login user
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check required fields
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -71,7 +65,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Find user by email
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -81,7 +74,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Compare entered password with hashed password
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -91,7 +83,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Generate JWT token
     const jwt = require('jsonwebtoken');
 
     const token = jwt.sign(
@@ -100,7 +91,6 @@ const loginUser = async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    // Send successful response
     res.status(200).json({
       success: true,
       message: 'Login successful',
@@ -112,7 +102,6 @@ const loginUser = async (req, res) => {
         email: user.email
       }
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -122,4 +111,42 @@ const loginUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser };
+// Get public user profile
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findOne({
+      username: req.params.username
+    }).select('name username bio profileImage createdAt');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const posts = await Post.find({
+      author: user._id,
+      isPublished: true
+    })
+      .select('title slug coverImage tags createdAt')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      user,
+      posts
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getUserProfile
+};
