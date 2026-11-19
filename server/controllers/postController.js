@@ -188,6 +188,40 @@ const getPosts = async (req, res) => {
   }
 };
 
+// Search published posts by title
+const searchPosts = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || !q.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a search keyword'
+      });
+    }
+
+    const posts = await Post.find({
+      title: { $regex: q.trim(), $options: 'i' },
+      isPublished: true
+    })
+      .populate('author', 'name username profileImage')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: posts.length,
+      posts
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+
 const getPostBySlug = async (req, res) => {
   try {
     const post = await Post.findOne({
@@ -348,6 +382,7 @@ const deletePost = async (req, res) => {
 module.exports = {
   createPost,
   getPosts,
+  searchPosts,
   getPostBySlug,
   getMyPosts,
   updatePost,
