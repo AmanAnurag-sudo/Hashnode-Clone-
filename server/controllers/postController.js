@@ -1,6 +1,9 @@
 const Post = require('../models/Post');
 const Tag = require('../models/Tag');
 
+const isValidPostStatus = (status) =>
+  status === 'draft' || status === 'published';
+
 const isValidTagList = (tags) =>
   Array.isArray(tags) &&
   tags.every((tag) => typeof tag === 'string' && tag.trim().length > 0);
@@ -92,7 +95,13 @@ const serializePost = (post) => {
 
 const createPost = async (req, res) => {
   try {
-    const { title, content, coverImage, tags = [] } = req.body || {};
+    const {
+      title,
+      content,
+      coverImage,
+      tags = [],
+      status = 'draft'
+    } = req.body || {};
 
     if (
       typeof title !== 'string' ||
@@ -103,6 +112,13 @@ const createPost = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Title and content are required'
+      });
+    }
+
+    if (!isValidPostStatus(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be either draft or published'
       });
     }
 
@@ -137,7 +153,9 @@ const createPost = async (req, res) => {
         coverImage,
         tags: resolvedTags.names,
         tagRefs: resolvedTags.references,
-        author: req.user._id
+        author: req.user._id,
+        status,
+        isPublished: status === 'published'
       });
 
       try {
@@ -174,7 +192,7 @@ const createPost = async (req, res) => {
 
 const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ isPublished: true }).sort({ createdAt: -1 });
+    const posts = await Post.find(Post.publishedFilter()).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -202,7 +220,7 @@ const searchPosts = async (req, res) => {
 
     const posts = await Post.find({
       title: { $regex: q.trim(), $options: 'i' },
-      isPublished: true
+      ...Post.publishedFilter()
     })
       .populate('author', 'name username profileImage')
       .sort({ createdAt: -1 });
@@ -226,7 +244,7 @@ const getPostBySlug = async (req, res) => {
   try {
     const post = await Post.findOne({
       slug: req.params.slug,
-      isPublished: true
+      ...Post.publishedFilter()
     });
 
     if (!post) {
@@ -304,10 +322,28 @@ const updatePost = async (req, res) => {
       });
     }
 
+    if (hasUpdate('status') && !isValidPostStatus(updates.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status must be either draft or published'
+      });
+    }
+
     if (hasUpdate('isPublished') && typeof updates.isPublished !== 'boolean') {
       return res.status(400).json({
         success: false,
         message: 'isPublished must be a boolean'
+      });
+    }
+
+    if (
+      hasUpdate('status') &&
+      hasUpdate('isPublished') &&
+      updates.isPublished !== (updates.status === 'published')
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status and isPublished values must be consistent'
       });
     }
 
@@ -323,8 +359,11 @@ const updatePost = async (req, res) => {
       post.coverImage = updates.coverImage;
     }
 
-    if (hasUpdate('isPublished')) {
-      post.isPublished = updates.isPublished;
+    if (hasUpdate('status') || hasUpdate('isPublished')) {
+      post.status = hasUpdate('status')
+        ? updates.status
+        : updates.isPublished ? 'published' : 'draft';
+      post.isPublished = post.status === 'published';
     }
 
     const resolvedTags = await resolvePostTags(
@@ -340,6 +379,13 @@ const updatePost = async (req, res) => {
       post: serializePost(post)
     });
   } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: error.message

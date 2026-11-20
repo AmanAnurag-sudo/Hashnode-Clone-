@@ -127,15 +127,19 @@ const getUserProfile = async (req, res) => {
 
     const posts = await Post.find({
       author: user._id,
-      isPublished: true
+      ...Post.publishedFilter()
     })
-      .select('title slug coverImage tags createdAt')
+      .select('title slug coverImage tags createdAt status isPublished')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
       user,
-      posts
+      posts: posts.map((post) => {
+        const postObject = post.toObject();
+        delete postObject.isPublished;
+        return postObject;
+      })
     });
   } catch (error) {
     return res.status(500).json({

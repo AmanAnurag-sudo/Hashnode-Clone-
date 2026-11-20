@@ -27,6 +27,11 @@ const postSchema = new mongoose.Schema(
       ref: 'User',
       required: true
     },
+    status: {
+      type: String,
+      enum: ['draft', 'published'],
+      default: 'draft'
+    },
     tags: [{
       type: String,
       trim: true
@@ -37,11 +42,28 @@ const postSchema = new mongoose.Schema(
     }],
     isPublished: {
       type: Boolean,
-      default: false
+      default: function () {
+        return this.status === 'published';
+      }
     }
   },
   { timestamps: true }
 );
+
+postSchema.pre('init', function (document) {
+  if (document.status === undefined) {
+    document.status = document.isPublished ? 'published' : 'draft';
+  }
+});
+
+postSchema.statics.publishedFilter = function () {
+  return {
+    $or: [
+      { status: 'published' },
+      { status: { $exists: false }, isPublished: true }
+    ]
+  };
+};
 
 module.exports = mongoose.model('Post', postSchema);
 

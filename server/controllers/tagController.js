@@ -14,7 +14,7 @@ const getTags = async (req, res) => {
   try {
     const [tags, publishedPosts] = await Promise.all([
       Tag.find().sort({ name: 1 }).lean(),
-      Post.find({ isPublished: true }).select('tags tagRefs').lean()
+      Post.find(Post.publishedFilter()).select('tags tagRefs').lean()
     ]);
 
     const tagIdsByName = new Map(
@@ -83,10 +83,14 @@ const getPostsByTag = async (req, res) => {
       'i'
     );
     const posts = await Post.find({
-      isPublished: true,
-      $or: [
-        { tagRefs: tag._id },
-        { tags: { $regex: legacyTagName } }
+      $and: [
+        Post.publishedFilter(),
+        {
+          $or: [
+            { tagRefs: tag._id },
+            { tags: { $regex: legacyTagName } }
+          ]
+        }
       ]
     }).sort({ createdAt: -1 });
 
