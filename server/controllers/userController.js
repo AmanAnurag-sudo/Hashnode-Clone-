@@ -149,8 +149,97 @@ const getUserProfile = async (req, res) => {
   }
 };
 
+// Update the authenticated user's profile
+const updateProfile = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication is required'
+      });
+    }
+
+    const body = req.body;
+    const fields = ['name', 'bio', 'profileImage'];
+
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide profile fields to update'
+      });
+    }
+
+    const providedFields = fields.filter((field) =>
+      Object.prototype.hasOwnProperty.call(body, field)
+    );
+
+    if (providedFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least one profile field to update'
+      });
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(body, 'name') &&
+      (typeof body.name !== 'string' || !body.name.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name cannot be empty'
+      });
+    }
+
+    for (const field of ['bio', 'profileImage']) {
+      if (
+        Object.prototype.hasOwnProperty.call(body, field) &&
+        typeof body[field] !== 'string'
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be a string`
+        });
+      }
+    }
+
+    providedFields.forEach((field) => {
+      req.user[field] = body[field];
+    });
+
+    const user = await req.user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        bio: user.bio,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
-  getUserProfile
+  getUserProfile,
+  updateProfile
 };

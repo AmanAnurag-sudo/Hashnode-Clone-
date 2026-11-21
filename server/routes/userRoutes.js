@@ -4,7 +4,8 @@ const router = express.Router();
 const {
   registerUser,
   loginUser,
-  getUserProfile
+  getUserProfile,
+  updateProfile
 } = require('../controllers/userController');
 
 const authMiddleware = require('../middleware/authMiddleware');
@@ -23,6 +24,9 @@ router.get('/me', authMiddleware, (req, res) => {
     user: req.user
   });
 });
+
+// PUT /api/users/profile (Protected)
+router.put('/profile', authMiddleware, updateProfile);
 
 // GET /api/users/:username (Public Profile)
 router.get('/:username', getUserProfile);
