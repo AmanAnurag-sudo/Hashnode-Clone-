@@ -1,121 +1,355 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useMemo, useState } from 'react'
+import posts from './data/posts.js'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+const iconPaths = {
+  bookmark: <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z" />,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  compass: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></>,
+  heart: <path d="M20.8 8.8c0 4.4-8.8 10-8.8 10S3.2 13.2 3.2 8.8a4.3 4.3 0 0 1 8.8-1 4.3 4.3 0 0 1 8.8 1Z" />,
+  home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></>,
+  menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
+  plus: <><path d="M12 5v14M5 12h14" /></>,
+  search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.1.9-1.1 1.9-1.4-.5a7.7 7.7 0 0 1-1.6.9l-.2 1.5h-2.2l-.3-1.5a7.7 7.7 0 0 1-1.6-.9l-1.4.5-1.1-1.9 1.1-.9a7.5 7.5 0 0 1 0-1.8l-1.1-.9 1.1-1.9 1.4.5a7.7 7.7 0 0 1 1.6-.9l.3-1.5h2.2l.2 1.5a7.7 7.7 0 0 1 1.6.9l1.4-.5 1.1 1.9-1.1.9a7.5 7.5 0 0 1-.1 1.7Z" /></>,
+  users: <><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20" /><circle cx="10" cy="8" r="3.5" /><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M16 4.65a3.5 3.5 0 0 1 0 6.7" /></>,
+  write: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></>,
+}
+
+function Icon({ name, size = 18, ...props }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      {iconPaths[name]}
+    </svg>
+  )
+}
+
+const navigation = [
+  { label: 'Home', icon: 'home' },
+  { label: 'Explore', icon: 'compass' },
+  { label: 'Bookmarks', icon: 'bookmark' },
+  { label: 'Following', icon: 'users' },
+  { label: 'Reading history', icon: 'clock' },
+  { label: 'Settings', icon: 'settings' },
+]
+
+function Logo() {
+  return (
+    <a className="brand" href="#" aria-label="Hashnode home">
+      <span className="brand-mark">h</span>
+      <span>Hashnode</span>
+    </a>
+  )
+}
+
+function Header({ search, setSearch }) {
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <header className="topbar">
+      <div className="topbar-inner">
+        <Logo />
+        <nav className="top-links" aria-label="Main navigation">
+          <a className="top-link active" href="#feed">Home</a>
+          <a className="top-link" href="#explore">Explore</a>
+        </nav>
+        <label className={`search-box ${mobileSearchOpen ? 'search-open' : ''}`}>
+          <Icon name="search" size={17} />
+          <input
+            type="search"
+            aria-label="Search stories and developers"
+            placeholder="Search stories, tags, people..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <kbd>⌘ K</kbd>
+        </label>
+        <div className="header-actions">
+          <button
+            className="icon-button mobile-search-toggle"
+            type="button"
+            aria-label="Toggle search"
+            onClick={() => setMobileSearchOpen((open) => !open)}
+          >
+            <Icon name="search" />
+          </button>
+          <a className="write-button" href="#write">
+            <Icon name="write" size={16} />
+            <span>Write</span>
+          </a>
+          <a className="sign-in-button" href="#sign-in">Sign in</a>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+      </div>
+    </header>
+  )
+}
+
+function Sidebar({ activeItem, onNavigate }) {
+  return (
+    <aside className="left-sidebar" aria-label="Your navigation">
+      <p className="sidebar-label">MENU</p>
+      <nav className="side-nav">
+        {navigation.map((item) => (
+          <button
+            className={`side-nav-item ${activeItem === item.label ? 'selected' : ''}`}
+            key={item.label}
+            type="button"
+            onClick={() => onNavigate(item.label)}
+          >
+            <Icon name={item.icon} size={19} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-note">
+        <div className="sidebar-note-icon"><Icon name="write" size={17} /></div>
+        <strong>Your ideas deserve an audience.</strong>
+        <p>Share what you know with the developer community.</p>
+        <a href="#write">Start writing <span aria-hidden="true">→</span></a>
+      </div>
+      <p className="sidebar-footer">© 2025 Hashnode&nbsp; · &nbsp;About&nbsp; · &nbsp;Help</p>
+    </aside>
+  )
+}
+
+function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
+  return (
+    <article className="post-card">
+      <div className="post-main">
+        <div className="post-author">
+          <div className={`avatar ${post.avatarColor}`} aria-hidden="true">{post.initials}</div>
+          <div className="author-details">
+            <strong>{post.author}</strong>
+            <span>@{post.username} <i>·</i> {post.date}</span>
+          </div>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+        <a className="post-title" href={`#${post.slug}`}>{post.title}</a>
+        <p className="post-description">{post.description}</p>
+        <div className="post-tags">
+          {post.tags.map((tag) => <a href={`#tag-${tag}`} key={tag}>#{tag}</a>)}
+        </div>
+        <div className="post-footer">
+          <span className="read-time"><Icon name="clock" size={15} /> {post.readTime} min read</span>
+          <div className="post-actions">
+            <button
+              className={`post-action ${isLiked ? 'is-active' : ''}`}
+              type="button"
+              aria-label={`${isLiked ? 'Unlike' : 'Like'} ${post.title}`}
+              aria-pressed={isLiked}
+              onClick={() => onLike(post.id)}
+            >
+              <Icon name="heart" size={17} />
+              <span>{post.likes + (isLiked ? 1 : 0)}</span>
+            </button>
+            <button
+              className={`post-action bookmark-action ${isBookmarked ? 'is-active' : ''}`}
+              type="button"
+              aria-label={`${isBookmarked ? 'Remove bookmark for' : 'Bookmark'} ${post.title}`}
+              aria-pressed={isBookmarked}
+              onClick={() => onBookmark(post.id)}
+            >
+              <Icon name="bookmark" size={17} />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className={`post-art ${post.artClass}`} aria-hidden="true">
+        <span className="art-label">{post.artLabel}</span>
+        <span className="art-decoration">{post.artSymbol}</span>
+        <span className="art-caption">{post.artCaption}</span>
+      </div>
+    </article>
+  )
+}
+
+function RightSidebar() {
+  const [followed, setFollowed] = useState([])
+  const toggleFollow = (username) => {
+    setFollowed((current) => current.includes(username)
+      ? current.filter((name) => name !== username)
+      : [...current, username])
+  }
+  const developers = [
+    { name: 'Sophie Alpert', handle: 'sophiebits', initials: 'SA', color: 'avatar-lilac', specialty: 'React · Open source' },
+    { name: 'Theodore Brown', handle: 'teddev', initials: 'TB', color: 'avatar-sky', specialty: 'Node.js · APIs' },
+    { name: 'Mina Park', handle: 'minacodes', initials: 'MP', color: 'avatar-peach', specialty: 'Frontend · Design systems' },
+  ]
+
+  return (
+    <aside className="right-sidebar" id="explore" aria-label="Discover developers and topics">
+      <section className="rail-section">
+        <div className="rail-heading">
+          <h2>Recommended topics</h2>
+          <a href="#topics">See all</a>
+        </div>
+        <div className="topic-list">
+          <a href="#topic-react"><span className="topic-dot dot-blue" />React</a>
+          <a href="#topic-javascript"><span className="topic-dot dot-yellow" />JavaScript</a>
+          <a href="#topic-webdev"><span className="topic-dot dot-purple" />Web Development</a>
+          <a href="#topic-node"><span className="topic-dot dot-green" />Node.js</a>
+        </div>
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      <section className="rail-section">
+        <div className="rail-heading">
+          <h2>Popular this week</h2>
+          <span className="trending-mark">↗</span>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div className="popular-tags">
+          {['typescript', 'ai', 'nextjs', 'career', 'css', 'opensource'].map((tag) => (
+            <a href={`#tag-${tag}`} key={tag}>#{tag}</a>
+          ))}
         </div>
       </section>
+      <section className="rail-section developers-section">
+        <div className="rail-heading">
+          <h2>People to follow</h2>
+          <a href="#people">See all</a>
+        </div>
+        <div className="developer-list">
+          {developers.map((developer) => {
+            const isFollowed = followed.includes(developer.handle)
+            return (
+              <div className="developer" key={developer.handle}>
+                <div className={`avatar ${developer.color}`} aria-hidden="true">{developer.initials}</div>
+                <div className="developer-info">
+                  <strong>{developer.name}</strong>
+                  <span>{developer.specialty}</span>
+                </div>
+                <button
+                  type="button"
+                  className={`follow-button ${isFollowed ? 'following' : ''}`}
+                  aria-label={`${isFollowed ? 'Unfollow' : 'Follow'} ${developer.name}`}
+                  onClick={() => toggleFollow(developer.handle)}
+                >
+                  {isFollowed ? 'Following' : 'Follow'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+      <section className="newsletter-card">
+        <div className="newsletter-icon">✳</div>
+        <p className="newsletter-eyebrow">THE HASHNODE LETTER</p>
+        <h2>A little inspiration for your inbox.</h2>
+        <p>Fresh ideas and stories from the developer community, every week.</p>
+        <a href="#newsletter">Join the newsletter <span aria-hidden="true">→</span></a>
+      </section>
+      <p className="rail-legal">Guidelines&nbsp; · &nbsp;Terms&nbsp; · &nbsp;Privacy</p>
+    </aside>
+  )
+}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+function App() {
+  const [activeItem, setActiveItem] = useState('Home')
+  const [activeTab, setActiveTab] = useState('Featured')
+  const [search, setSearch] = useState('')
+  const [likedPosts, setLikedPosts] = useState([])
+  const [bookmarkedPosts, setBookmarkedPosts] = useState([])
+
+  const visiblePosts = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return posts.filter((post) => {
+      const matchesQuery = !query || [
+        post.author,
+        post.username,
+        post.title,
+        post.description,
+        ...post.tags,
+      ].join(' ').toLowerCase().includes(query)
+      const matchesTab = activeTab !== 'Following' || post.following
+      return matchesQuery && matchesTab
+    })
+  }, [activeTab, search])
+
+  const togglePostState = (id, setter) => {
+    setter((current) => current.includes(id)
+      ? current.filter((postId) => postId !== id)
+      : [...current, id])
+  }
+
+  return (
+    <div className="app-shell">
+      <Header search={search} setSearch={setSearch} />
+      <div className="page-layout">
+        <Sidebar activeItem={activeItem} onNavigate={setActiveItem} />
+        <main className="feed-column" id="feed">
+          <div className="feed-heading">
+            <div>
+              <p className="eyebrow">MONDAY, MAY 19</p>
+              <h1>Your feed<span className="heading-period">.</span></h1>
+              <p className="feed-subtitle">Ideas and insights from developers you follow.</p>
+            </div>
+            <button className="filter-button" type="button" aria-label="Feed options">
+              <Icon name="menu" size={17} />
+            </button>
+          </div>
+          <div className="feed-tabs" role="tablist" aria-label="Feed type">
+            {['Featured', 'Following', 'Latest'].map((tab) => (
+              <button
+                className={`feed-tab ${activeTab === tab ? 'active' : ''}`}
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab}
+                {tab === 'Featured' && <span className="featured-spark">✦</span>}
+              </button>
+            ))}
+          </div>
+          {visiblePosts.length ? (
+            <div className="post-list">
+              {visiblePosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  isLiked={likedPosts.includes(post.id)}
+                  isBookmarked={bookmarkedPosts.includes(post.id)}
+                  onLike={(id) => togglePostState(id, setLikedPosts)}
+                  onBookmark={(id) => togglePostState(id, setBookmarkedPosts)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-state-icon"><Icon name="search" size={22} /></div>
+              <h2>No stories found</h2>
+              <p>Try a different search, or explore the latest stories from the community.</p>
+              <button type="button" onClick={() => { setSearch(''); setActiveTab('Featured') }}>Clear filters</button>
+            </div>
+          )}
+          <div className="feed-end">You’re all caught up <span aria-hidden="true">✦</span></div>
+        </main>
+        <RightSidebar />
+      </div>
+      <nav className="mobile-nav" aria-label="Mobile navigation">
+        {navigation.slice(0, 5).map((item) => (
+          <button
+            className={activeItem === item.label ? 'active' : ''}
+            key={item.label}
+            type="button"
+            aria-label={item.label}
+            onClick={() => setActiveItem(item.label)}
+          >
+            <Icon name={item.icon} size={20} />
+            <span>{item.label === 'Reading history' ? 'History' : item.label}</span>
+          </button>
+        ))}
+      </nav>
+    </div>
   )
 }
 
