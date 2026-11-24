@@ -1,6 +1,69 @@
-import { useMemo, useState } from 'react'
-import posts from './data/posts.js'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+
+const avatarColors = ['avatar-lilac', 'avatar-sky', 'avatar-peach', 'avatar-mint']
+
+function mapApiPost(post) {
+  const author = post.author && typeof post.author === 'object' ? post.author : {}
+  const authorName = typeof author.name === 'string' && author.name.trim()
+    ? author.name.trim()
+    : 'Community author'
+  const initials = authorName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+  const content = typeof post.content === 'string' ? post.content : ''
+  const description = content
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const tags = Array.isArray(post.tags)
+    ? post.tags.filter((tag) => typeof tag === 'string')
+    : []
+  const createdAt = new Date(post.createdAt)
+  const date = Number.isNaN(createdAt.getTime())
+    ? 'Recently'
+    : createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const authorColorIndex = Array.from(String(post._id || post.slug || ''))
+    .reduce((sum, character) => sum + character.charCodeAt(0), 0) % avatarColors.length
+  const firstTag = tags[0] || ''
+  const artClass = {
+    react: 'art-react',
+    nodejs: 'art-node',
+    javascript: 'art-javascript',
+    api: 'art-api',
+  }[firstTag.toLowerCase()] || ''
+
+  return {
+    id: post._id || post.slug,
+    avatarColor: avatarColors[authorColorIndex],
+    avatarImage: typeof author.profileImage === 'string' ? author.profileImage : '',
+    initials: initials || 'CA',
+    author: authorName,
+    username: typeof author.username === 'string' && author.username.trim()
+      ? author.username.trim()
+      : 'community',
+    date,
+    slug: post.slug || post._id,
+    title: typeof post.title === 'string' && post.title.trim()
+      ? post.title
+      : 'Untitled story',
+    description: description.length > 180
+      ? `${description.slice(0, 177)}...`
+      : description || 'No preview is available for this story.',
+    tags,
+    readTime: Math.max(1, Math.ceil(content.trim().split(/\s+/).filter(Boolean).length / 200)),
+    likes: Number.isFinite(post.likes) ? post.likes : 0,
+    coverImage: typeof post.coverImage === 'string' ? post.coverImage : '',
+    artClass,
+    artLabel: firstTag ? firstTag.toUpperCase() : 'STORY',
+    artSymbol: firstTag.slice(0, 2).toUpperCase() || '✦',
+    artCaption: 'A story from the developer community',
+    following: Boolean(post.following),
+  }
+}
 
 const iconPaths = {
   bookmark: <path d="M6 4.75A1.75 1.75 0 0 1 7.75 3h8.5A1.75 1.75 0 0 1 18 4.75V21l-6-4-6 4V4.75Z" />,
@@ -124,11 +187,25 @@ function Sidebar({ activeItem, onNavigate }) {
 }
 
 function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
+  const [avatarImageFailed, setAvatarImageFailed] = useState(false)
+  const [coverImageFailed, setCoverImageFailed] = useState(false)
+  const showAvatarImage = post.avatarImage && !avatarImageFailed
+  const showCoverImage = post.coverImage && !coverImageFailed
+
   return (
     <article className="post-card">
       <div className="post-main">
         <div className="post-author">
-          <div className={`avatar ${post.avatarColor}`} aria-hidden="true">{post.initials}</div>
+          <div className={`avatar ${post.avatarColor}`} aria-hidden="true">
+            {showAvatarImage ? (
+              <img
+                className="post-avatar-image"
+                src={post.avatarImage}
+                alt=""
+                onError={() => setAvatarImageFailed(true)}
+              />
+            ) : post.initials}
+          </div>
           <div className="author-details">
             <strong>{post.author}</strong>
             <span>@{post.username} <i>·</i> {post.date}</span>
@@ -165,9 +242,20 @@ function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
         </div>
       </div>
       <div className={`post-art ${post.artClass}`} aria-hidden="true">
-        <span className="art-label">{post.artLabel}</span>
-        <span className="art-decoration">{post.artSymbol}</span>
-        <span className="art-caption">{post.artCaption}</span>
+        {showCoverImage ? (
+          <img
+            className="post-cover-image"
+            src={post.coverImage}
+            alt=""
+            onError={() => setCoverImageFailed(true)}
+          />
+        ) : (
+          <>
+            <span className="art-label">{post.artLabel}</span>
+            <span className="art-decoration">{post.artSymbol}</span>
+            <span className="art-caption">{post.artCaption}</span>
+          </>
+        )}
       </div>
     </article>
   )
@@ -257,6 +345,43 @@ function App() {
   const [search, setSearch] = useState('')
   const [likedPosts, setLikedPosts] = useState([])
   const [bookmarkedPosts, setBookmarkedPosts] = useState([])
+  const [posts, setPosts] = useState([])
+  const [feedStatus, setFeedStatus] = useState('loading')
+  const [feedError, setFeedError] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadPosts = async () => {
+      setFeedStatus('loading')
+      setFeedError('')
+
+      try {
+        const response = await fetch('/api/posts', { signal: controller.signal })
+
+        if (!response.ok) {
+          throw new Error(`Could not load stories (HTTP ${response.status}).`)
+        }
+
+        const result = await response.json()
+
+        if (!result.success || !Array.isArray(result.posts)) {
+          throw new Error('The server returned an invalid stories response.')
+        }
+
+        setPosts(result.posts.map(mapApiPost))
+        setFeedStatus('success')
+      } catch (error) {
+        if (error.name === 'AbortError') return
+        setFeedError(error instanceof Error ? error.message : 'Could not load stories.')
+        setFeedStatus('error')
+      }
+    }
+
+    loadPosts()
+    return () => controller.abort()
+  }, [retryCount])
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -271,7 +396,7 @@ function App() {
       const matchesTab = activeTab !== 'Following' || post.following
       return matchesQuery && matchesTab
     })
-  }, [activeTab, search])
+  }, [activeTab, posts, search])
 
   const togglePostState = (id, setter) => {
     setter((current) => current.includes(id)
@@ -310,7 +435,28 @@ function App() {
               </button>
             ))}
           </div>
-          {visiblePosts.length ? (
+          {feedStatus === 'loading' ? (
+            <div className="empty-state feed-status" role="status">
+              <span className="feed-spinner" aria-hidden="true" />
+              <h2>Loading stories</h2>
+              <p>Fetching the latest published posts.</p>
+            </div>
+          ) : feedStatus === 'error' ? (
+            <div className="empty-state feed-status" role="alert">
+              <div className="empty-state-icon"><Icon name="search" size={22} /></div>
+              <h2>Stories couldn’t be loaded</h2>
+              <p>{feedError}</p>
+              <button type="button" onClick={() => setRetryCount((count) => count + 1)}>
+                Try again
+              </button>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="empty-state feed-status">
+              <div className="empty-state-icon"><Icon name="write" size={22} /></div>
+              <h2>No published stories yet</h2>
+              <p>Check back soon for stories from the community.</p>
+            </div>
+          ) : visiblePosts.length ? (
             <div className="post-list">
               {visiblePosts.map((post) => (
                 <PostCard
@@ -323,6 +469,13 @@ function App() {
                 />
               ))}
             </div>
+          ) : activeTab === 'Following' ? (
+            <div className="empty-state">
+              <div className="empty-state-icon"><Icon name="users" size={22} /></div>
+              <h2>Following feed isn’t connected yet</h2>
+              <p>The posts API doesn’t identify posts from authors you follow.</p>
+              <button type="button" onClick={() => { setSearch(''); setActiveTab('Featured') }}>Show all stories</button>
+            </div>
           ) : (
             <div className="empty-state">
               <div className="empty-state-icon"><Icon name="search" size={22} /></div>
@@ -331,7 +484,9 @@ function App() {
               <button type="button" onClick={() => { setSearch(''); setActiveTab('Featured') }}>Clear filters</button>
             </div>
           )}
-          <div className="feed-end">You’re all caught up <span aria-hidden="true">✦</span></div>
+          {feedStatus === 'success' && posts.length > 0 && (
+            <div className="feed-end">You’re all caught up <span aria-hidden="true">✦</span></div>
+          )}
         </main>
         <RightSidebar />
       </div>
