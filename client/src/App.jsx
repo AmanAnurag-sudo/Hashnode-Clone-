@@ -186,7 +186,7 @@ function Sidebar({ activeItem, onNavigate }) {
   )
 }
 
-function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
+function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark, onOpenPost }) {
   const [avatarImageFailed, setAvatarImageFailed] = useState(false)
   const [coverImageFailed, setCoverImageFailed] = useState(false)
   const showAvatarImage = post.avatarImage && !avatarImageFailed
@@ -211,7 +211,26 @@ function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
             <span>@{post.username} <i>·</i> {post.date}</span>
           </div>
         </div>
-        <a className="post-title" href={`#${post.slug}`}>{post.title}</a>
+        <a
+          className="post-title"
+          href={`/posts/${encodeURIComponent(post.slug)}`}
+          onClick={(event) => {
+            if (
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return
+            }
+
+            event.preventDefault()
+            onOpenPost(post.slug)
+          }}
+        >
+          {post.title}
+        </a>
         <p className="post-description">{post.description}</p>
         <div className="post-tags">
           {post.tags.map((tag) => <a href={`#tag-${tag}`} key={tag}>#{tag}</a>)}
@@ -257,6 +276,157 @@ function PostCard({ post, isLiked, isBookmarked, onLike, onBookmark }) {
           </>
         )}
       </div>
+    </article>
+  )
+}
+
+function getPostSlugFromPath() {
+  const match = window.location.pathname.match(/^\/posts\/([^/]+)\/?$/)
+
+  if (!match) return ''
+
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
+}
+
+function PostDetail({ slug, onBack }) {
+  const [post, setPost] = useState(null)
+  const [status, setStatus] = useState('loading')
+  const [error, setError] = useState('')
+  const [retryCount, setRetryCount] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const loadPost = async () => {
+      setStatus('loading')
+      setError('')
+      setPost(null)
+
+      try {
+        const response = await fetch(`/api/posts/${encodeURIComponent(slug)}`, {
+          signal: controller.signal,
+        })
+
+        if (response.status === 404) {
+          setStatus('not-found')
+          return
+        }
+
+        if (!response.ok) {
+          throw new Error(`Could not load this story (HTTP ${response.status}).`)
+        }
+
+        const result = await response.json()
+
+        if (!result.success || !result.post || typeof result.post !== 'object') {
+          throw new Error('The server returned an invalid story response.')
+        }
+
+        setPost(result.post)
+        setStatus('success')
+      } catch (loadError) {
+        if (loadError.name === 'AbortError') return
+        setError(loadError instanceof Error ? loadError.message : 'Could not load this story.')
+        setStatus('error')
+      }
+    }
+
+    loadPost()
+    return () => controller.abort()
+  }, [retryCount, slug])
+
+  if (status === 'loading') {
+    return (
+      <div className="empty-state post-detail-status" role="status">
+        <span className="feed-spinner" aria-hidden="true" />
+        <h2>Loading story</h2>
+        <p>Fetching this post.</p>
+      </div>
+    )
+  }
+
+  if (status === 'not-found') {
+    return (
+      <div className="empty-state post-detail-status" role="status">
+        <div className="empty-state-icon"><Icon name="search" size={22} /></div>
+        <h2>Story not found</h2>
+        <p>This post may have been removed or is no longer available.</p>
+        <button type="button" onClick={onBack}>Back to feed</button>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="empty-state post-detail-status" role="alert">
+        <div className="empty-state-icon"><Icon name="search" size={22} /></div>
+        <h2>Story couldn’t be loaded</h2>
+        <p>{error}</p>
+        <button type="button" onClick={() => setRetryCount((count) => count + 1)}>
+          Try again
+        </button>
+        <button className="post-detail-back-button" type="button" onClick={onBack}>
+          Back to feed
+        </button>
+      </div>
+    )
+  }
+
+  const author = post.author && typeof post.author === 'object' ? post.author : {}
+  const authorName = typeof author.name === 'string' && author.name.trim()
+    ? author.name.trim()
+    : 'Community author'
+  const initials = authorName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase() || 'CA'
+  const createdAt = new Date(post.createdAt)
+  const date = post.createdAt && !Number.isNaN(createdAt.getTime())
+    ? createdAt.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+    : 'Date unavailable'
+  const title = typeof post.title === 'string' && post.title.trim()
+    ? post.title.trim()
+    : 'Untitled story'
+  const content = typeof post.content === 'string' && post.content.trim()
+    ? post.content
+    : 'No content is available for this post.'
+  const tags = Array.isArray(post.tags)
+    ? post.tags.filter((tag) => typeof tag === 'string' && tag.trim())
+    : []
+
+  return (
+    <article className="post-detail">
+      <button className="post-detail-back" type="button" onClick={onBack}>
+        <span aria-hidden="true">←</span> Back to feed
+      </button>
+      <header className="post-detail-header">
+        <h1>{title}</h1>
+        <div className="post-detail-byline">
+          <div className="avatar avatar-sky" aria-hidden="true">{initials}</div>
+          <div>
+            <strong>{authorName}</strong>
+            <span>{date}</span>
+          </div>
+        </div>
+        {tags.length > 0 ? (
+          <div className="post-detail-tags" aria-label="Post tags">
+            {tags.map((tag, index) => <span key={`${tag}-${index}`}>#{tag}</span>)}
+          </div>
+        ) : (
+          <p className="post-detail-no-tags">No tags</p>
+        )}
+      </header>
+      <div className="post-detail-content">{content}</div>
     </article>
   )
 }
@@ -340,6 +510,7 @@ function RightSidebar() {
 }
 
 function App() {
+  const [currentSlug, setCurrentSlug] = useState(getPostSlugFromPath)
   const [activeItem, setActiveItem] = useState('Home')
   const [activeTab, setActiveTab] = useState('Featured')
   const [search, setSearch] = useState('')
@@ -351,6 +522,26 @@ function App() {
   const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
+    const syncRoute = () => setCurrentSlug(getPostSlugFromPath())
+    window.addEventListener('popstate', syncRoute)
+    return () => window.removeEventListener('popstate', syncRoute)
+  }, [])
+
+  const openPost = (slug) => {
+    window.history.pushState({}, '', `/posts/${encodeURIComponent(slug)}`)
+    setCurrentSlug(slug)
+    window.scrollTo(0, 0)
+  }
+
+  const returnToFeed = () => {
+    window.history.pushState({}, '', '/')
+    setCurrentSlug('')
+    window.scrollTo(0, 0)
+  }
+
+  useEffect(() => {
+    if (currentSlug) return undefined
+
     const controller = new AbortController()
 
     const loadPosts = async () => {
@@ -381,7 +572,7 @@ function App() {
 
     loadPosts()
     return () => controller.abort()
-  }, [retryCount])
+  }, [currentSlug, retryCount])
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -410,6 +601,10 @@ function App() {
       <div className="page-layout">
         <Sidebar activeItem={activeItem} onNavigate={setActiveItem} />
         <main className="feed-column" id="feed">
+          {currentSlug ? (
+            <PostDetail slug={currentSlug} onBack={returnToFeed} />
+          ) : (
+            <>
           <div className="feed-heading">
             <div>
               <p className="eyebrow">MONDAY, MAY 19</p>
@@ -466,6 +661,7 @@ function App() {
                   isBookmarked={bookmarkedPosts.includes(post.id)}
                   onLike={(id) => togglePostState(id, setLikedPosts)}
                   onBookmark={(id) => togglePostState(id, setBookmarkedPosts)}
+                  onOpenPost={openPost}
                 />
               ))}
             </div>
@@ -486,6 +682,8 @@ function App() {
           )}
           {feedStatus === 'success' && posts.length > 0 && (
             <div className="feed-end">You’re all caught up <span aria-hidden="true">✦</span></div>
+          )}
+            </>
           )}
         </main>
         <RightSidebar />

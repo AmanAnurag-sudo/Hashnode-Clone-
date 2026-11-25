@@ -397,8 +397,10 @@
 }
 
 .post-card {
+  position: relative;
   display: grid;
   min-width: 0;
+  cursor: pointer;
   grid-template-columns: minmax(0, 1fr) 150px;
   gap: 19px;
   padding: 19px;
@@ -506,6 +508,19 @@
   line-height: 1.4;
   text-decoration: none;
   transition: color 150ms ease;
+}
+
+.post-title::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+}
+
+.post-tags,
+.post-footer {
+  position: relative;
+  z-index: 2;
 }
 
 .post-title:hover {
@@ -727,6 +742,110 @@
 .art-api::before,
 .art-api::after {
   border-color: rgba(107, 33, 168, 0.15);
+}
+
+.post-detail-status {
+  margin-top: 0;
+}
+
+.post-detail {
+  margin-top: 18px;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.post-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.post-detail-back:hover {
+  color: #1d4ed8;
+}
+
+.post-detail-header {
+  padding-bottom: 25px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.post-detail-header h1 {
+  margin: 0 0 23px;
+  color: #0f172a;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 750;
+  letter-spacing: -1.6px;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.post-detail-byline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-detail-byline > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.post-detail-byline strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.post-detail-byline span {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.post-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 19px;
+}
+
+.post-detail-tags span {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.post-detail-no-tags {
+  margin: 17px 0 0;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.post-detail-content {
+  padding-top: 25px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.post-detail-back-button {
+  background: #64748b !important;
 }
 
 .empty-state {
