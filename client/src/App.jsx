@@ -109,14 +109,31 @@ const navigation = [
 
 function Logo() {
   return (
-    <a className="brand" href="#" aria-label="Hashnode home">
+    <a className="brand" href="/" aria-label="Hashnode home">
       <span className="brand-mark">h</span>
       <span>Hashnode</span>
     </a>
   )
 }
 
-function Header({ search, setSearch }) {
+function ThemeToggle({ theme, onToggle }) {
+  const nextTheme = theme === 'light' ? 'dark' : 'light'
+
+  return (
+    <button
+      className="theme-toggle"
+      type="button"
+      aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`}
+      onClick={onToggle}
+    >
+      <span aria-hidden="true">{theme === 'light' ? '☾' : '☀'}</span>
+      <span className="theme-toggle-label">{theme === 'light' ? 'Dark' : 'Light'} mode</span>
+    </button>
+  )
+}
+
+function Header({ search, setSearch, theme, onToggleTheme }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   return (
@@ -147,14 +164,98 @@ function Header({ search, setSearch }) {
           >
             <Icon name="search" />
           </button>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           <a className="write-button" href="#write">
             <Icon name="write" size={16} />
             <span>Write</span>
           </a>
-          <a className="sign-in-button" href="#sign-in">Sign in</a>
+          <a className="sign-in-button" href="/login">Sign in</a>
         </div>
       </div>
     </header>
+  )
+}
+
+function AuthPage({ page, theme, onToggleTheme }) {
+  const isRegister = page === 'register'
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    setSubmitted(true)
+  }
+
+  return (
+    <div className="auth-page">
+      <header className="auth-topbar">
+        <Logo />
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </header>
+      <main className="auth-main">
+        <section className="auth-card" aria-labelledby="auth-title">
+          <div className="auth-brand-mark" aria-hidden="true">h</div>
+          <p className="auth-eyebrow">{isRegister ? 'JOIN THE COMMUNITY' : 'WELCOME BACK'}</p>
+          <h1 id="auth-title">{isRegister ? 'Create your account' : 'Sign in to Hashnode'}</h1>
+          <p className="auth-intro">
+            {isRegister
+              ? 'Share ideas and connect with developers around the world.'
+              : 'Continue to your developer community.'}
+          </p>
+          <form className="auth-form" onSubmit={handleSubmit}>
+            {isRegister && (
+              <label>
+                Name
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Your name"
+                  autoComplete="name"
+                  minLength={2}
+                  required
+                />
+              </label>
+            )}
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                name="password"
+                placeholder="At least 8 characters"
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                minLength={8}
+                required
+              />
+            </label>
+            <button className="auth-submit" type="submit">
+              {isRegister ? 'Create account' : 'Sign in'}
+            </button>
+            {submitted && (
+              <p className="auth-notice" role="status">
+                Authentication isn’t connected yet. Your details haven’t been submitted.
+              </p>
+            )}
+          </form>
+          <p className="auth-switch">
+            {isRegister ? 'Already have an account?' : 'New to Hashnode?'}
+            {' '}
+            <a href={isRegister ? '/login' : '/register'}>
+              {isRegister ? 'Sign in' : 'Create an account'}
+            </a>
+          </p>
+        </section>
+      </main>
+      <p className="auth-footer">© 2025 Hashnode · Built for developers</p>
+    </div>
   )
 }
 
@@ -511,6 +612,14 @@ function RightSidebar() {
 
 function App() {
   const [currentSlug, setCurrentSlug] = useState(getPostSlugFromPath)
+  const [pathname, setPathname] = useState(window.location.pathname)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return window.localStorage.getItem('hashnode-theme') === 'dark' ? 'dark' : 'light'
+    } catch {
+      return 'light'
+    }
+  })
   const [activeItem, setActiveItem] = useState('Home')
   const [activeTab, setActiveTab] = useState('Featured')
   const [search, setSearch] = useState('')
@@ -520,27 +629,42 @@ function App() {
   const [feedStatus, setFeedStatus] = useState('loading')
   const [feedError, setFeedError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const authPage = pathname.match(/^\/(login|register)\/?$/)?.[1] || ''
 
   useEffect(() => {
-    const syncRoute = () => setCurrentSlug(getPostSlugFromPath())
+    document.documentElement.dataset.theme = theme
+    try {
+      window.localStorage.setItem('hashnode-theme', theme)
+    } catch {
+      // Theme remains active for this session when storage is unavailable.
+    }
+  }, [theme])
+
+  useEffect(() => {
+    const syncRoute = () => {
+      setPathname(window.location.pathname)
+      setCurrentSlug(getPostSlugFromPath())
+    }
     window.addEventListener('popstate', syncRoute)
     return () => window.removeEventListener('popstate', syncRoute)
   }, [])
 
   const openPost = (slug) => {
     window.history.pushState({}, '', `/posts/${encodeURIComponent(slug)}`)
+    setPathname(window.location.pathname)
     setCurrentSlug(slug)
     window.scrollTo(0, 0)
   }
 
   const returnToFeed = () => {
     window.history.pushState({}, '', '/')
+    setPathname('/')
     setCurrentSlug('')
     window.scrollTo(0, 0)
   }
 
   useEffect(() => {
-    if (currentSlug) return undefined
+    if (currentSlug || authPage) return undefined
 
     const controller = new AbortController()
 
@@ -572,7 +696,7 @@ function App() {
 
     loadPosts()
     return () => controller.abort()
-  }, [currentSlug, retryCount])
+  }, [authPage, currentSlug, retryCount])
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -595,9 +719,26 @@ function App() {
       : [...current, id])
   }
 
+  if (authPage) {
+    return (
+      <div className="app-shell auth-shell">
+        <AuthPage
+          page={authPage}
+          theme={theme}
+          onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
-      <Header search={search} setSearch={setSearch} />
+      <Header
+        search={search}
+        setSearch={setSearch}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+      />
       <div className="page-layout">
         <Sidebar activeItem={activeItem} onNavigate={setActiveItem} />
         <main className="feed-column" id="feed">
