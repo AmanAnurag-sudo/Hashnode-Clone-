@@ -176,13 +176,66 @@ function Header({ search, setSearch, theme, onToggleTheme }) {
   )
 }
 
-function AuthPage({ page, theme, onToggleTheme }) {
+function AuthPage({ page, theme, onToggleTheme, onLoginSuccess }) {
   const isRegister = page === 'register'
-  const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notice, setNotice] = useState(null)
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
-    setSubmitted(true)
+    setIsSubmitting(true)
+    setNotice(null)
+
+    const formData = new FormData(event.currentTarget)
+    const payload = {
+      ...(isRegister && {
+        name: formData.get('name'),
+        username: formData.get('username'),
+      }),
+      email: formData.get('email'),
+      password: formData.get('password'),
+    }
+
+    try {
+      const response = await fetch(`/api/users/${isRegister ? 'register' : 'login'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result || typeof result !== 'object' || !result.success) {
+        throw new Error(
+          typeof result?.message === 'string' && result.message
+            ? result.message
+            : `Authentication request failed (HTTP ${response.status}).`,
+        )
+      }
+
+      if (isRegister) {
+        setNotice({
+          type: 'success',
+          message: typeof result.message === 'string' && result.message
+            ? result.message
+            : 'Account created successfully. You can now sign in.',
+        })
+        return
+      }
+
+      if (typeof result.token !== 'string' || !result.token) {
+        throw new Error('The login response did not include an authentication token.')
+      }
+
+      window.localStorage.setItem('hashnode-token', result.token)
+      onLoginSuccess()
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Authentication failed. Please try again.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -215,6 +268,18 @@ function AuthPage({ page, theme, onToggleTheme }) {
                 />
               </label>
             )}
+            {isRegister && (
+              <label>
+                Username
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="Choose a username"
+                  autoComplete="username"
+                  required
+                />
+              </label>
+            )}
             <label>
               Email
               <input
@@ -236,12 +301,12 @@ function AuthPage({ page, theme, onToggleTheme }) {
                 required
               />
             </label>
-            <button className="auth-submit" type="submit">
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>
               {isRegister ? 'Create account' : 'Sign in'}
             </button>
-            {submitted && (
-              <p className="auth-notice" role="status">
-                Authentication isn’t connected yet. Your details haven’t been submitted.
+            {notice && (
+              <p className="auth-notice" role={notice.type === 'error' ? 'alert' : 'status'}>
+                {notice.message}
               </p>
             )}
           </form>
@@ -726,6 +791,7 @@ function App() {
           page={authPage}
           theme={theme}
           onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+          onLoginSuccess={returnToFeed}
         />
       </div>
     )
