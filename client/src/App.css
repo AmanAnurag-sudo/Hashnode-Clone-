@@ -142,6 +142,7 @@
   border-radius: 8px;
   font-size: 13px;
   font-weight: 650;
+  font-family: inherit;
   text-decoration: none;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
@@ -162,6 +163,7 @@
   border-color: #e2e8f0;
   background: #fff;
   color: #334155;
+  cursor: pointer;
 }
 
 .sign-in-button:hover {

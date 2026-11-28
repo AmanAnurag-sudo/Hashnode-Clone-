@@ -133,7 +133,7 @@ function ThemeToggle({ theme, onToggle }) {
   )
 }
 
-function Header({ search, setSearch, theme, onToggleTheme }) {
+function Header({ search, setSearch, theme, onToggleTheme, isAuthenticated, onLogout }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
 
   return (
@@ -169,7 +169,11 @@ function Header({ search, setSearch, theme, onToggleTheme }) {
             <Icon name="write" size={16} />
             <span>Write</span>
           </a>
-          <a className="sign-in-button" href="/login">Sign in</a>
+          {isAuthenticated ? (
+            <button className="sign-in-button" type="button" onClick={onLogout}>Log out</button>
+          ) : (
+            <a className="sign-in-button" href="/login">Sign in</a>
+          )}
         </div>
       </div>
     </header>
@@ -678,6 +682,13 @@ function RightSidebar() {
 function App() {
   const [currentSlug, setCurrentSlug] = useState(getPostSlugFromPath)
   const [pathname, setPathname] = useState(window.location.pathname)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return Boolean(window.localStorage.getItem('hashnode-token'))
+    } catch {
+      return false
+    }
+  })
   const [theme, setTheme] = useState(() => {
     try {
       return window.localStorage.getItem('hashnode-theme') === 'dark' ? 'dark' : 'light'
@@ -724,6 +735,20 @@ function App() {
   const returnToFeed = () => {
     window.history.pushState({}, '', '/')
     setPathname('/')
+    setCurrentSlug('')
+    window.scrollTo(0, 0)
+  }
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true)
+    returnToFeed()
+  }
+
+  const handleLogout = () => {
+    window.localStorage.removeItem('hashnode-token')
+    setIsAuthenticated(false)
+    window.history.pushState({}, '', '/login')
+    setPathname('/login')
     setCurrentSlug('')
     window.scrollTo(0, 0)
   }
@@ -791,7 +816,7 @@ function App() {
           page={authPage}
           theme={theme}
           onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
-          onLoginSuccess={returnToFeed}
+          onLoginSuccess={handleLoginSuccess}
         />
       </div>
     )
@@ -804,6 +829,8 @@ function App() {
         setSearch={setSearch}
         theme={theme}
         onToggleTheme={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}
+        isAuthenticated={isAuthenticated}
+        onLogout={handleLogout}
       />
       <div className="page-layout">
         <Sidebar activeItem={activeItem} onNavigate={setActiveItem} />
