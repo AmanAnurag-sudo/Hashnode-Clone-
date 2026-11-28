@@ -5,7 +5,11 @@ const {
   registerUser,
   loginUser,
   getUserProfile,
-  updateProfile
+  updateProfile,
+  followUser,
+  unfollowUser,
+  getFollowers,
+  getFollowing
 } = require('../controllers/userController');
 
 const authMiddleware = require('../middleware/authMiddleware');
@@ -27,6 +31,18 @@ router.get('/me', authMiddleware, (req, res) => {
 
 // PUT /api/users/profile (Protected)
 router.put('/profile', authMiddleware, updateProfile);
+
+// POST /api/users/:identifier/follow (Protected)
+router.post('/:identifier/follow', authMiddleware, followUser);
+
+// DELETE /api/users/:identifier/follow (Protected)
+router.delete('/:identifier/follow', authMiddleware, unfollowUser);
+
+// GET /api/users/:username/followers
+router.get('/:username/followers', getFollowers);
+
+// GET /api/users/:username/following
+router.get('/:username/following', getFollowing);
 
 // GET /api/users/:username (Public Profile)
 router.get('/:username', getUserProfile);
